@@ -23,40 +23,31 @@ export default function Home() {
     setIsAuthenticated(!!token);
   };
 
-  const testConnection = async () => {
-    try {
-      Alert.alert("Probando conexión...");
+ const testConnection = async () => {
+  try {
+    console.log("HTTPS...");
 
-      const response = await fetch(
-        "http://192.168.12.11:5016/swagger/v1/swagger.json"
-      );
+    const r1 = await fetch("https://jsonplaceholder.typicode.com/todos/1");
 
-      Alert.alert(
-        "Respuesta",
-        `Status: ${response.status}`
-      );
+    console.log(await r1.text());
 
-      const text = await response.text();
+    Alert.alert("HTTPS", "OK");
+  } catch (e: any) {
+    Alert.alert("HTTPS ERROR", e.message);
+  }
 
-      console.log(text);
+  try {
+    console.log("HTTP...");
 
-      Alert.alert(
-        "OK",
-        text.substring(0, 300)
-      );
-    } catch (e: any) {
-      console.log(e);
+    const r2 = await fetch("http://neverssl.com");
 
-      Alert.alert(
-        "ERROR",
-        JSON.stringify({
-          name: e.name,
-          message: e.message,
-          stack: e.stack
-        })
-      );
-    }
-  };
+    console.log(await r2.text());
+
+    Alert.alert("HTTP", "OK");
+  } catch (e: any) {
+    Alert.alert("HTTP ERROR", e.message);
+  }
+};
 
   if (isAuthenticated === null) {
     return (
