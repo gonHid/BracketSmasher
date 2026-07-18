@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "PlayerGGApp",
-    "slug": "PlayerGGApp",
+    "name": "BracketSmasher",
+    "slug": "bracketsmasher",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "playerggapp",
+    "scheme": "bracketsmasher",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
@@ -19,7 +19,19 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "usesCleartextTraffic": true,
+      "package": "com.anonymous.BracketSmasher",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "data": {
+            "scheme": "bracketsmasher",
+            "host": "redirect"
+          },
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "web": {
       "output": "static",
@@ -38,11 +50,19 @@
             "backgroundColor": "#000000"
           }
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "e6e6092a-0fdc-4097-ace9-ef73f39b12b9"
+      }
+    },
+    "owner": "gonhids-team"
   }
 }
