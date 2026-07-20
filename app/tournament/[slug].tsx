@@ -16,7 +16,7 @@ export default function EventsScreen() {
   }`;
 
   useEffect(() => {
-    executeStartGgQuery(GET_EVENTS, process.env.EXPO_PUBLIC_STARTGG_TOKEN!, { slug })
+    executeStartGgQuery(GET_EVENTS,{ slug })
       .then(data => {
         setEvents(data.tournament.events);
         setLoading(false);

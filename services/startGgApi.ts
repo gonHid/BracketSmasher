@@ -1,43 +1,138 @@
-// services/startGgApi.ts
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const API_URL = 'https://api.start.gg/gql/alpha';
+const API_URL = "https://api.start.gg/gql/alpha";
 
-/**
- * Servicio centralizado para ejecutar consultas a Start.gg
- */
-export const executeStartGgQuery = async (query: string, token: string, variables = {}) => {
+export async function executeStartGgQuery(
+  query: string,
+  variables = {}
+) {
+  const token = await AsyncStorage.getItem("userToken");
+
+  if (!token)
+    throw new Error("No existe token OAuth.");
+
   const response = await fetch(API_URL, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`,
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
     },
-    body: JSON.stringify({ query, variables }),
+    body: JSON.stringify({
+      query,
+      variables,
+    }),
   });
 
-  const result = await response.json();
+  const json = await response.json();
 
-  if (result.errors) {
-    // Si hay error en la query, lanzamos excepción
-    throw new Error(result.errors[0].message);
-  }
-  return result.data;
-};
+  if (json.errors)
+    throw new Error(json.errors[0].message);
 
-/**
- * Consulta para obtener torneos del usuario actual
- */
+  return json.data;
+}
+
 export const GET_MY_TOURNAMENTS = `
 query GetMyTournaments {
   currentUser {
-    tournaments(query: { perPage: 10, filter: { past: false } }) {
+    tournaments(query: { perPage: 20 }) {
       nodes {
         id
         name
         slug
         startAt
+        endAt
       }
     }
   }
+}
+`;
+
+export const GET_MY_PROFILE = `
+query GetMyProfile {
+  currentUser {
+    id
+    name
+    player {
+      id
+      gamerTag
+    }
+  }
+}
+`;
+
+export const GET_SETS = `
+query GetSets($eventId: ID!, $page: Int!) {
+
+  event(id: $eventId) {
+
+    id
+    name
+
+    # 👇 NUEVO
+    tournament {
+      id
+      startAt
+    }
+
+    sets(
+      page: $page
+      perPage: 25
+      sortType: STANDARD
+    ) {
+
+      pageInfo {
+        totalPages
+      }
+
+      nodes {
+
+        id
+        identifier
+        fullRoundText
+        state
+        completedAt
+        startAt
+        winnerId
+        round
+
+        slots {
+
+          standing {
+
+            placement
+
+            stats {
+              score {
+                value
+              }
+            }
+
+          }
+
+          entrant {
+
+            id
+            name
+
+            participants {
+
+              gamerTag
+
+              player {
+                id
+              }
+
+            }
+
+          }
+
+        }
+
+      }
+
+    }
+
+  }
+
 }
 `;

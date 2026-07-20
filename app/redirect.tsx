@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { View, ActivityIndicator, Text, StyleSheet, Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { executeStartGgQuery, GET_MY_PROFILE } from "../services/startGgApi";
 
 export default function Redirect() {
   const { code } = useLocalSearchParams();
@@ -19,10 +20,9 @@ export default function Redirect() {
 
   const exchange = async (oauthCode: string) => {
     try {
-      Alert.alert('Código recibido', oauthCode);
-
+      const API_URL = process.env.EXPO_PUBLIC_API_URL!;
       const response = await fetch(
-        'http://192.168.12.11:5016/api/auth/exchange',
+        `${API_URL}/api/auth/exchange`,
         {
           method: 'POST',
           headers: {
@@ -47,6 +47,14 @@ export default function Redirect() {
         'userToken',
         data.access_token
       );
+
+      const me = await executeStartGgQuery(GET_MY_PROFILE);
+
+      await AsyncStorage.multiSet([
+        ["myUserId", me.currentUser.id.toString()],
+        ["myPlayerId", me.currentUser.player.id.toString()],
+        ["myGamerTag", me.currentUser.player.gamerTag],
+      ]);
 
       router.replace('/');
     } catch (err) {
