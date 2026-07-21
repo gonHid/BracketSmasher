@@ -96,9 +96,11 @@ export default function MatchScreen() {
 
   useEffect(() => {
     const conn = new SignalR.HubConnectionBuilder()
-      .withUrl(`${API_URL}/matchHub`)
-      .withAutomaticReconnect()
-      .build();
+    .withUrl(`${API_URL}/matchHub`, {
+      transport: SignalR.HttpTransportType.WebSockets
+    })
+    .withAutomaticReconnect()
+    .build();
 
     conn.on("BothPlayersConnected", () => {
       setBothReady(true);
@@ -227,11 +229,20 @@ export default function MatchScreen() {
 
     async function start() {
       try {
-        await conn.start();
+        const health = await fetch(`${API_URL}/health`);
+
+        await Promise.race([
+        conn.start(),
+        new Promise((_, reject) =>
+          setTimeout(
+            () => reject(new Error("Timeout conectando SignalR")),
+            15000
+          )
+        ),
+      ]);
 
         setConnection(conn);
         setConnected(true);
-
         await joinCurrentMatch();
       } catch (err) {
         console.error("Error SignalR:", err);

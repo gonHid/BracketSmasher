@@ -10,7 +10,6 @@ export default function Home() {
 
   useEffect(() => {
     const API_URL = process.env.EXPO_PUBLIC_API_URL!;
-    Alert.alert(API_URL);
     checkAuth();
   }, []);
 

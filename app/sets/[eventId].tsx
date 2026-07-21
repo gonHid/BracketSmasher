@@ -219,6 +219,16 @@ export default function SetsScreen() {
           const player2Id =
             slot2?.entrant?.participants?.[0]?.player?.id;
 
+          const player1Name =
+            slot1?.entrant?.participants?.[0]?.gamerTag ??
+            slot1?.entrant?.name ??
+            "TBD";
+
+          const player2Name =
+            slot2?.entrant?.participants?.[0]?.gamerTag ??
+            slot2?.entrant?.name ??
+            "TBD";
+
           return (
 
             <Pressable
@@ -268,15 +278,11 @@ export default function SetsScreen() {
                 <View style={{ height: 12 }} />
 
                 <Text style={styles.player}>
-                  {p1Mine
-                    ? `🟢 Tú (${score1})`
-                    : `⚪ ${slot1?.entrant?.name ?? "TBD"} (${score1})`}
+                  {`${p1Mine ? "🟢" : "⚪"} ${player1Name} (${score1})`}
                 </Text>
 
                 <Text style={styles.player}>
-                  {p2Mine
-                    ? `🟢 Tú (${score2})`
-                    : `⚪ ${slot2?.entrant?.name ?? "TBD"} (${score2})`}
+                  {`${p2Mine ? "🟢" : "⚪"} ${player2Name} (${score2})`}
                 </Text>
 
                 {canOpen && (
