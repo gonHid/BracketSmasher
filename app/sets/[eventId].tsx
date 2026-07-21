@@ -243,6 +243,13 @@ export default function SetsScreen() {
                       slot2?.entrant?.participants?.[0]?.player?.id,
 
                     myPlayerId: myPlayerId,
+                    player1Tag:
+                      slot1?.entrant?.participants?.[0]?.gamerTag ??
+                      slot1?.entrant?.name,
+
+                    player2Tag:
+                      slot2?.entrant?.participants?.[0]?.gamerTag ??
+                      slot2?.entrant?.name,
                   },
                 })
               }
