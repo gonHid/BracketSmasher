@@ -15,7 +15,6 @@ import {
 } from "../services/startGgApi";
 
 export default function TournamentsScreen() {
-
   const [tournaments, setTournaments] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -26,91 +25,74 @@ export default function TournamentsScreen() {
   }, []);
 
   async function fetchTournaments() {
-
     setLoading(true);
 
     try {
-
       const data = await executeStartGgQuery(GET_MY_TOURNAMENTS);
 
+      const tournaments = data.currentUser.tournaments.nodes;
       const now = Math.floor(Date.now() / 1000);
 
-      const ordered = [...data.currentUser.tournaments.nodes].sort(
-        (a: any, b: any) => {
+      const ordered = [...tournaments].sort((a: any, b: any) => {
+        const priority = (tournament: any) => {
+          const start = tournament.startAt ?? 0;
+          const end = tournament.endAt ?? start;
 
-          const priority = (tournament: any) => {
+          // Torneo ocurriendo ahora
+          if (now >= start && now <= end)
+            return 0;
 
-            const start = tournament.startAt ?? 0;
-            const end = tournament.endAt ?? start;
+          // Futuro
+          if (start > now)
+            return 1;
 
-            // Torneo ocurriendo ahora
-            if (now >= start && now <= end)
-              return 0;
+          // Pasado
+          return 2;
+        };
 
-            // Futuro
-            if (start > now)
-              return 1;
+        const pa = priority(a);
+        const pb = priority(b);
 
-            // Pasado
-            return 2;
-          };
+        if (pa !== pb)
+          return pa - pb;
 
-          const pa = priority(a);
-          const pb = priority(b);
+        // En curso → comienza antes primero
+        if (pa === 0)
+          return (a.startAt ?? 0) - (b.startAt ?? 0);
 
-          if (pa !== pb)
-            return pa - pb;
+        // Futuros → más cercano primero
+        if (pa === 1)
+          return (a.startAt ?? 0) - (b.startAt ?? 0);
 
-          //-------------------------------------------------
-          // Dentro de cada grupo
-          //-------------------------------------------------
-
-          // En curso -> comienza antes primero
-          if (pa === 0)
-            return a.startAt - b.startAt;
-
-          // Futuros -> más cercano primero
-          if (pa === 1)
-            return a.startAt - b.startAt;
-
-          // Pasados -> más reciente primero
-          return b.endAt - a.endAt;
-
-        }
-      );
+        // Pasados → más reciente primero
+        return (b.endAt ?? 0) - (a.endAt ?? 0);
+      });
 
       setTournaments(ordered);
-
     } catch (e: any) {
-
       alert(e.message);
-
     } finally {
-
       setLoading(false);
-
     }
-
   }
 
   function getStatus(item: any) {
-
     const now = Math.floor(Date.now() / 1000);
 
-    if (now >= item.startAt && now <= item.endAt)
+    const start = item.startAt ?? 0;
+    const end = item.endAt ?? start;
+
+    if (now >= start && now <= end)
       return "🟢 EN CURSO";
 
-    if (item.startAt > now)
+    if (start > now)
       return "🕒 PRÓXIMO";
 
     return "✓ FINALIZADO";
-
   }
 
   return (
-
     <View style={styles.container}>
-
       <View style={styles.topBar}>
         <Button
           title="← Volver"
@@ -123,21 +105,16 @@ export default function TournamentsScreen() {
       </Text>
 
       {loading ? (
-
         <ActivityIndicator size="large" />
-
       ) : (
-
         <FlatList
           data={tournaments}
           keyExtractor={(item) => item.id.toString()}
           renderItem={({ item }) => (
-
             <TouchableOpacity
               style={styles.card}
-              onPress={() => router.push(`${item.slug}`)}
+              onPress={() => router.push(`/${item.slug}`)}
             >
-
               <Text style={styles.status}>
                 {getStatus(item)}
               </Text>
@@ -147,28 +124,29 @@ export default function TournamentsScreen() {
               </Text>
 
               <Text style={styles.date}>
-                {new Date(item.startAt * 1000).toLocaleDateString()}
+                {item.startAt
+                  ? new Date(item.startAt * 1000).toLocaleDateString()
+                  : "Sin fecha"}
               </Text>
-
             </TouchableOpacity>
-
           )}
+          ListEmptyComponent={
+            <Text style={{ textAlign: "center", marginTop: 40 }}>
+              No tienes torneos de Smash Ultimate registrados.
+            </Text>
+          }
         />
-
       )}
-
     </View>
-
   );
-
 }
 
 const styles = StyleSheet.create({
-
   container: {
     flex: 1,
     paddingTop: 60,
     padding: 20,
+    backgroundColor: "#f8fafc",
   },
 
   topBar: {
@@ -190,6 +168,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: "#ddd",
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
   },
 
   status: {
@@ -201,11 +184,11 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 18,
     fontWeight: "bold",
+    color: "#0f172a",
   },
 
   date: {
     marginTop: 6,
     color: "#666",
   },
-
 });

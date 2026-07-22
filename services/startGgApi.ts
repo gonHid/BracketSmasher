@@ -30,11 +30,19 @@ export async function executeStartGgQuery(
 
   return json.data;
 }
-
+//filtrando solo smash ultimate y usuario participante
 export const GET_MY_TOURNAMENTS = `
 query GetMyTournaments {
   currentUser {
-    tournaments(query: { perPage: 20 }) {
+    tournaments(
+      query: {
+        perPage: 20
+        filter: {
+          tournamentView: "competing"
+          videogameId: [1386]
+        }
+      }
+    ) {
       nodes {
         id
         name
