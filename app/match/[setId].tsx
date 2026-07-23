@@ -202,11 +202,16 @@ export default function MatchScreen() {
     });
 
     async function joinCurrentMatch() {
+      Alert.alert(
+        "JoinMatch params",
+        `set=${setId}\np1=${p1Id}\np2=${p2Id}\nme=${meId}`
+      );
+
       await conn.invoke(
         "JoinMatch",
         Number(tournamentId),
         Number(eventId),
-        Number(setId),
+        String(setId),
         Number(tournamentStartAt),
         meId,
         p1Id,
@@ -229,22 +234,26 @@ export default function MatchScreen() {
 
     async function start() {
       try {
+        // Despierta Render
         const health = await fetch(`${API_URL}/health`);
+        Alert.alert("Health", `status ${health.status}`);
 
-        await Promise.race([
-        conn.start(),
-        new Promise((_, reject) =>
-          setTimeout(
-            () => reject(new Error("Timeout conectando SignalR")),
-            15000
-          )
-        ),
-      ]);
+        // Conectar SignalR
+        await conn.start();
+        Alert.alert("SignalR", "Conectado, invocando JoinMatch");
 
         setConnection(conn);
         setConnected(true);
+
+        // Invocar JoinMatch
         await joinCurrentMatch();
-      } catch (err) {
+        Alert.alert("JoinMatch", `Set ${setId} enviado`);
+
+      } catch (err: any) {
+        Alert.alert(
+          "Error SignalR",
+          err?.message ?? JSON.stringify(err)
+        );
         console.error("Error SignalR:", err);
       } finally {
         setLoading(false);
@@ -271,7 +280,7 @@ export default function MatchScreen() {
     try {
       await connection.invoke(
         "FlipCoin",
-        Number(setId)
+        String(setId)
       );
     } catch (err) {
       console.error(err);
@@ -300,7 +309,7 @@ export default function MatchScreen() {
       try {
         await connection.invoke(
           "SetStageState",
-          Number(setId),
+          String(setId),
           stageId,
           nextState,
           meId
@@ -331,7 +340,7 @@ export default function MatchScreen() {
       try {
         await connection.invoke(
           "ResetStages",
-          Number(setId)
+          String(setId)
         );
 
         return;
@@ -391,7 +400,7 @@ export default function MatchScreen() {
       "SubmitResult",
 
       // identificación del set
-      Number(setId),
+      String(setId),
 
       // quién está enviando
       meId,
