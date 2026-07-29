@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { View, ActivityIndicator, StyleSheet,Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Notifications from 'expo-notifications';
 
 import Login from './login';
 import Tournaments from './tournaments';
