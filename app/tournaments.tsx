@@ -1,6 +1,4 @@
 import { useState, useEffect } from "react";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { registerForPushNotificationsAsync } from "../services/notifications";
 import {
   View,
   Button,
@@ -9,7 +7,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  Alert,
 } from "react-native";
 import { useRouter } from "expo-router";
 import {
@@ -22,57 +19,10 @@ export default function TournamentsScreen() {
   const [loading, setLoading] = useState(false);
 
   const router = useRouter();
-  const API_URL = process.env.EXPO_PUBLIC_API_URL!;
 
   useEffect(() => {
     fetchTournaments();
   }, []);
-
-  useEffect(() => {
-  registerDevice();
-}, []);
-
-async function registerDevice() {
-  try {
-    const playerId = await AsyncStorage.getItem("myPlayerId");
-
-    if (!playerId) {
-      Alert.alert("Depuración", "No se encontró myPlayerId en AsyncStorage");
-      return;
-    }
-
-    const expoPushToken = await registerForPushNotificationsAsync();
-
-    if (!expoPushToken) {
-      // La alerta del motivo ya se mostró dentro de registerForPushNotificationsAsync
-      return;
-    }
-
-    // Nota: Comentamos temporalmente la comparación con 'lastPushToken' 
-    // para forzar que intente registrar el token en la BD en esta prueba APK.
-
-    const response = await fetch(`${API_URL}/api/device/register`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        playerId: Number(playerId),
-        pushToken: expoPushToken,
-      }),
-    });
-
-    if (response.ok) {
-      Alert.alert("¡Éxito!", `Dispositivo registrado en Neon DB con Token:\n${expoPushToken.substring(0, 25)}...`);
-      await AsyncStorage.setItem("lastPushToken", expoPushToken);
-    } else {
-      const errorText = await response.text();
-      Alert.alert("Error Backend", `Status ${response.status}: ${errorText}`);
-    }
-  } catch (err: any) {
-    Alert.alert("Error en Red/Fetch", err.message || String(err));
-  }
-}
 
   async function fetchTournaments() {
     setLoading(true);

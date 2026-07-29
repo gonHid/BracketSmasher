@@ -210,9 +210,8 @@ export default function SetsScreen() {
           const score2 =
             slot2?.standing?.stats?.score?.value ?? "-";
 
-          const canOpen =
-            isMine(item) &&
-            item.state === 2;
+          // Por ahora basta con que sea mi set
+          const canOpen = isMine(item);
 
           const player1Id =
             slot1?.entrant?.participants?.[0]?.player?.id;

@@ -8,9 +8,6 @@ import {
   ActivityIndicator,
   Pressable,
   Alert,
-  ScrollView,
-  Modal,
-  TouchableOpacity,
 } from "react-native";
 import * as SignalR from "@microsoft/signalr";
 
@@ -58,12 +55,6 @@ export default function MatchScreen() {
 
   const [showStageUi, setShowStageUi] = useState(false);
   const [showReportUi, setShowReportUi] = useState(false);
-
-  const [stageModalVisible, setStageModalVisible] =
-    useState(false);
-
-  const [selectedStageId, setSelectedStageId] =
-    useState<number | null>(null);
 
   const [loading, setLoading] = useState(true);
 
@@ -301,88 +292,69 @@ export default function MatchScreen() {
   // Stages
   // -----------------------------
 
-async function sendStageState(state: StageState) {
-  if (selectedStageId == null)
-    return;
+  async function requestToggleStage(stageId: number) {
+    const current = stages.find((s) => s.id === stageId);
 
-  // actualización inmediata
-  setStages((prev) =>
-    prev.map((s) => ({
-      ...s,
-      state:
-        s.id === selectedStageId
-          ? state
-          : state === "selected" &&
-            s.state === "selected"
-          ? "neutral"
-          : s.state,
-    }))
-  );
+    if (!current)
+      return;
 
-  if (connection && connected) {
-    connection
-      .invoke(
-        "SetStageState",
-        String(setId),
-        selectedStageId,
-        state,
-        meId
-      )
-      .catch(console.error);
+    const nextState: StageState =
+      current.state === "neutral"
+        ? "banned"
+        : current.state === "banned"
+        ? "selected"
+        : "neutral";
+
+    if (connection && connected) {
+      try {
+        await connection.invoke(
+          "SetStageState",
+          String(setId),
+          stageId,
+          nextState,
+          meId
+        );
+
+        return;
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    setStages((prev) =>
+      prev.map((s) => ({
+        ...s,
+        state:
+          s.id === stageId
+            ? nextState
+            : nextState === "selected" &&
+              s.state === "selected"
+            ? "neutral"
+            : s.state,
+      }))
+    );
   }
-
-  setStageModalVisible(false);
-  setSelectedStageId(null);
-}
-async function clearStage() {
-  if (selectedStageId == null)
-    return;
-
-  setStages((prev) =>
-    prev.map((s) =>
-      s.id === selectedStageId
-        ? {
-            ...s,
-            state: "neutral",
-          }
-        : s
-    )
-  );
-
-  if (connection && connected) {
-    connection
-      .invoke(
-        "SetStageState",
-        String(setId),
-        selectedStageId,
-        "neutral",
-        meId
-      )
-      .catch(console.error);
-  }
-
-  setStageModalVisible(false);
-  setSelectedStageId(null);
-}
- function requestToggleStage(stageId: number) {
-  setSelectedStageId(stageId);
-  setStageModalVisible(true);
-}
-
 
   async function requestResetStages() {
-      setStages((prev) =>
+    if (connection && connected) {
+      try {
+        await connection.invoke(
+          "ResetStages",
+          String(setId)
+        );
+
+        return;
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    setStages((prev) =>
       prev.map((s) => ({
         ...s,
         state: "neutral",
       }))
     );
-
-    if (connection && connected) {
-      connection
-        .invoke("ResetStages", String(setId))
-        .catch(console.error);
-    }
   }
 
   // -----------------------------
@@ -493,15 +465,8 @@ async function clearStage() {
   // -----------------------------
   // Report UI
   // -----------------------------
-  
-  if (showReportUi) {
-    const totalGames = p1Score + p2Score;
 
-    const validResult =
-      p1Score !== p2Score &&
-      p1Score <= 5 &&
-      p2Score <= 5 &&
-      (totalGames === 3 || totalGames === 5);
+  if (showReportUi) {
     return (
       <View style={styles.container}>
 
@@ -532,7 +497,7 @@ async function clearStage() {
 
               <Button
                 title="+"
-                onPress={() => setP1Score((s) => Math.min(3, s + 1))}
+                onPress={() => setP1Score((s) => s + 1)}
               />
 
             </View>
@@ -560,7 +525,7 @@ async function clearStage() {
 
               <Button
                 title="+"
-                onPress={() => setP2Score((s) => Math.min(3, s + 1))}
+                onPress={() => setP2Score((s) => s + 1)}
               />
 
             </View>
@@ -581,7 +546,7 @@ async function clearStage() {
           <Button
             title="✅ Enviar resultado"
             onPress={submitResult}
-            disabled={!validResult || reportSent}
+            disabled={p1Score === p2Score || reportSent}
           />
         )}
 
@@ -599,161 +564,117 @@ async function clearStage() {
   // -----------------------------
   // Stage UI
   // -----------------------------
-  
+
   if (showStageUi) {
-  return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.scrollContent}
-      keyboardShouldPersistTaps="handled"
-      showsVerticalScrollIndicator={false}
-    >
-      <Text style={styles.title}>
-        Selección de etapas
-      </Text>
+    return (
+      <View style={styles.container}>
 
-      <Text style={styles.turn}>
-        🎯 {firstBannerTag} comienza baneando
-      </Text>
+        <Text style={styles.title}>
+          Selección de etapas
+        </Text>
 
-      {selectedStage && (
-        <View style={styles.selectedBanner}>
-          <Text style={styles.selectedBannerText}>
-            ✅ Etapa seleccionada: {selectedStage.name}
-          </Text>
+        <Text style={styles.turn}>
+          🎯 {firstBannerTag} comienza baneando
+        </Text>
+
+        {selectedStage && (
+          <View style={styles.selectedBanner}>
+            <Text style={styles.selectedBannerText}>
+              ✅ Etapa seleccionada: {selectedStage.name}
+            </Text>
+          </View>
+        )}
+
+        <Text style={styles.sectionTitle}>
+          Starter stages
+        </Text>
+
+        <View style={styles.grid}>
+          {starterStages.map((stage) => (
+            <Pressable
+              key={stage.id}
+              style={[
+                styles.stageCard,
+                stage.state === "banned" &&
+                  styles.stageBanned,
+                stage.state === "selected" &&
+                  styles.stageSelected,
+              ]}
+              onPress={() =>
+                requestToggleStage(stage.id)
+              }
+            >
+              <Text style={styles.stageName}>
+                {stage.name}
+              </Text>
+
+              <Text style={styles.stageMark}>
+                {stage.state === "banned"
+                  ? "❌"
+                  : stage.state === "selected"
+                  ? "✅"
+                  : "⬜"}
+              </Text>
+            </Pressable>
+          ))}
         </View>
-      )}
 
-      <Text style={styles.sectionTitle}>
-        Starter stages
-      </Text>
-
-      <View style={styles.grid}>
-        {starterStages.map((stage) => (
-          <Pressable
-            key={stage.id}
-            style={[
-              styles.stageCard,
-              stage.state === "banned" && styles.stageBanned,
-              stage.state === "selected" && styles.stageSelected,
-            ]}
-            onPress={() => requestToggleStage(stage.id)}
-          >
-            <Text style={styles.stageName}>{stage.name}</Text>
-            <Text style={styles.stageMark}>
-              {stage.state === "banned"
-                ? "❌"
-                : stage.state === "selected"
-                ? "✅"
-                : "⬜"}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-
-      <Text style={styles.sectionTitle}>
-        Counterpick stages
-      </Text>
-
-      <View style={styles.grid}>
-        {counterpickStages.map((stage) => (
-          <Pressable
-            key={stage.id}
-            style={[
-              styles.stageCard,
-              stage.state === "banned" && styles.stageBanned,
-              stage.state === "selected" && styles.stageSelected,
-            ]}
-            onPress={() => requestToggleStage(stage.id)}
-          >
-            <Text style={styles.stageName}>{stage.name}</Text>
-            <Text style={styles.stageMark}>
-              {stage.state === "banned"
-                ? "❌"
-                : stage.state === "selected"
-                ? "✅"
-                : "⬜"}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-
-      <View style={[styles.buttonsContainer, { marginBottom: 80 }]}>
-        <Button
-          title="🔄 Reiniciar etapas"
-          onPress={requestResetStages}
-        />
-
-        <Button
-          title="🎮 Terminar juego"
-          onPress={requestResetStages}
-        />
-
-        <Button
-          title="📢 Informar resultado"
-          onPress={() => setShowReportUi(true)}
-        />
-      </View>
-      <Modal
-  visible={stageModalVisible}
-  transparent
-  animationType="fade"
->
-  <View style={styles.modalBackground}>
-    <View style={styles.modalCard}>
-
-      <Text style={styles.modalTitle}>
-        ¿Qué deseas hacer?
-      </Text>
-
-      <TouchableOpacity
-        style={styles.modalButton}
-        onPress={() =>
-          sendStageState("banned")
-        }
-      >
-        <Text style={styles.modalButtonText}>
-          ❌ Banear etapa
+        <Text style={styles.sectionTitle}>
+          Counterpick stages
         </Text>
-      </TouchableOpacity>
 
-      <TouchableOpacity
-        style={styles.modalButton}
-        onPress={() =>
-          sendStageState("selected")
-        }
-      >
-        <Text style={styles.modalButtonText}>
-          ✅ Seleccionar etapa
-        </Text>
-      </TouchableOpacity>
+        <View style={styles.grid}>
+          {counterpickStages.map((stage) => (
+            <Pressable
+              key={stage.id}
+              style={[
+                styles.stageCard,
+                stage.state === "banned" &&
+                  styles.stageBanned,
+                stage.state === "selected" &&
+                  styles.stageSelected,
+              ]}
+              onPress={() =>
+                requestToggleStage(stage.id)
+              }
+            >
+              <Text style={styles.stageName}>
+                {stage.name}
+              </Text>
 
-      <TouchableOpacity
-        style={styles.modalButton}
-        onPress={clearStage}
-      >
-        <Text style={styles.modalButtonText}>
-          ⬜ Limpiar marca
-        </Text>
-      </TouchableOpacity>
+              <Text style={styles.stageMark}>
+                {stage.state === "banned"
+                  ? "❌"
+                  : stage.state === "selected"
+                  ? "✅"
+                  : "⬜"}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
 
-      <TouchableOpacity
-        style={styles.modalCancel}
-        onPress={() =>{
-          setStageModalVisible(false);
-          setSelectedStageId(null);
-        }
-        }
-      >
-        <Text>Cancelar</Text>
-      </TouchableOpacity>
+        <View style={styles.buttonsContainer}>
 
-    </View>
-  </View>
-</Modal>
-    </ScrollView>
-  );
-}
+          <Button
+            title="🔄 Reiniciar etapas"
+            onPress={requestResetStages}
+          />
+
+          <Button
+            title="🎮 Terminar juego"
+            onPress={requestResetStages}
+          />
+
+          <Button
+            title="📢 Informar resultado"
+            onPress={() => setShowReportUi(true)}
+          />
+
+        </View>
+
+      </View>
+    );
+  }
 
   // -----------------------------
   // Main screen
@@ -956,9 +877,7 @@ const styles = StyleSheet.create({
     marginTop: 28,
     gap: 12,
   },
-  scrollContent: {
-    paddingBottom: 150,
-  },
+
   scoreCard: {
     backgroundColor: "#f8fafc",
     borderWidth: 1,
@@ -1002,42 +921,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginBottom: 20,
   },
-modalBackground: {
-  flex: 1,
-  backgroundColor: "rgba(0,0,0,0.4)",
-  justifyContent: "center",
-  alignItems: "center",
-},
 
-modalCard: {
-  width: "80%",
-  backgroundColor: "white",
-  borderRadius: 14,
-  padding: 20,
-},
-
-modalTitle: {
-  fontSize: 20,
-  fontWeight: "bold",
-  marginBottom: 20,
-  textAlign: "center",
-},
-
-modalButton: {
-  paddingVertical: 14,
-  borderBottomWidth: 1,
-  borderColor: "#ddd",
-},
-
-modalButtonText: {
-  fontSize: 18,
-  textAlign: "center",
-},
-
-modalCancel: {
-  marginTop: 18,
-  alignItems: "center",
-},
   waitingConfirm: {
     textAlign: "center",
     fontSize: 16,
