@@ -211,10 +211,6 @@ export default function MatchScreen() {
     });
 
     async function joinCurrentMatch() {
-      Alert.alert(
-        "JoinMatch params",
-        `set=${setId}\np1=${p1Id}\np2=${p2Id}\nme=${meId}`
-      );
 
       await conn.invoke(
         "JoinMatch",
@@ -243,20 +239,15 @@ export default function MatchScreen() {
 
     async function start() {
       try {
-        // Despierta Render
-        const health = await fetch(`${API_URL}/health`);
-        Alert.alert("Health", `status ${health.status}`);
 
         // Conectar SignalR
         await conn.start();
-        Alert.alert("SignalR", "Conectado, invocando JoinMatch");
 
         setConnection(conn);
         setConnected(true);
 
         // Invocar JoinMatch
         await joinCurrentMatch();
-        Alert.alert("JoinMatch", `Set ${setId} enviado`);
 
       } catch (err: any) {
         Alert.alert(

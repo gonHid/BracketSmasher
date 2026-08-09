@@ -63,7 +63,6 @@ async function registerDevice() {
     });
 
     if (response.ok) {
-      Alert.alert("¡Éxito!", `Dispositivo registrado en Neon DB con Token:\n${expoPushToken.substring(0, 25)}...`);
       await AsyncStorage.setItem("lastPushToken", expoPushToken);
     } else {
       const errorText = await response.text();
@@ -79,7 +78,22 @@ async function registerDevice() {
 
     try {
       const data = await executeStartGgQuery(GET_MY_TOURNAMENTS);
-
+      if (!data || !data.currentUser) {
+        Alert.alert(
+          "Sesión expirada", 
+          "Tu sesión ha caducado. Por favor, vuelve a iniciar sesión.",
+          [
+            {
+              text: "OK",
+              onPress: async () => {
+                await AsyncStorage.multiRemove(["userToken", "myUserId", "myPlayerId", "myGamerTag"]);
+                router.replace('/'); // 👈 Redirige al Home para forzar el flujo de Login
+              }
+            }
+          ]
+        );
+        return;
+      }
       const tournaments = data.currentUser.tournaments.nodes;
       const now = Math.floor(Date.now() / 1000);
 

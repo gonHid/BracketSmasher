@@ -69,31 +69,24 @@ query GetMyProfile {
 `;
 
 export const GET_SETS = `
-query GetSets($eventId: ID!, $page: Int!) {
-
+query GetSets($eventId: ID!, $page: Int!, $playerId: ID) {
   event(id: $eventId) {
-
     id
     name
-
-    # 👇 NUEVO
     tournament {
       id
       startAt
     }
-
     sets(
       page: $page
       perPage: 25
       sortType: STANDARD
+      filters: { playerIds: [$playerId] }
     ) {
-
       pageInfo {
         totalPages
       }
-
       nodes {
-
         id
         identifier
         fullRoundText
@@ -102,45 +95,28 @@ query GetSets($eventId: ID!, $page: Int!) {
         startAt
         winnerId
         round
-
         slots {
-
           standing {
-
             placement
-
             stats {
               score {
                 value
               }
             }
-
           }
-
           entrant {
-
             id
             name
-
             participants {
-
               gamerTag
-
               player {
                 id
               }
-
             }
-
           }
-
         }
-
       }
-
     }
-
   }
-
 }
 `;
