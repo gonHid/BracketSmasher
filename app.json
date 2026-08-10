@@ -4,7 +4,7 @@
     "slug": "bracketsmasher",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/bracketSmasherIcon.png",
     "scheme": "bracketsmasher",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -13,10 +13,8 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "backgroundColor": "#0c1424",
+        "foregroundImage": "./assets/images/bracketSmasherIcon.png"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
@@ -35,7 +33,7 @@
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/bracketSmasherIcon.png"
     },
     "plugins": [      
       "./plugins/withCleartextTraffic",
