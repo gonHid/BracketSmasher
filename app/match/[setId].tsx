@@ -11,7 +11,9 @@ import {
   ScrollView,
   Modal,
   TouchableOpacity,
+  Image,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SignalR from "@microsoft/signalr";
 
 import {
@@ -68,7 +70,7 @@ export default function MatchScreen() {
   const [loading, setLoading] = useState(true);
 
   // -----------------------------
-  // Reporte de resultado
+  // Reporte de resultado y Personajes
   // -----------------------------
 
   const [p1Score, setP1Score] = useState(0);
@@ -77,6 +79,35 @@ export default function MatchScreen() {
   const [reportSent, setReportSent] = useState(false);
   const [waitingConfirmation, setWaitingConfirmation] =
     useState(false);
+
+  const [mySavedCharacters, setMySavedCharacters] = useState<string[]>([]);
+  const [selectedUsedCharacters, setSelectedUsedCharacters] = useState<string[]>([]);
+
+  useEffect(() => {
+    loadUserCharacters();
+  }, []);
+
+  async function loadUserCharacters() {
+    try {
+      const saved = await AsyncStorage.getItem("selectedCharacters");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        setMySavedCharacters(parsed);
+        // Seleccionar todos por defecto o dejar vacío para que el usuario elija
+        setSelectedUsedCharacters(parsed);
+      }
+    } catch (e) {
+      console.log("Error cargando personajes guardados", e);
+    }
+  }
+
+  const toggleUsedCharacter = (char: string) => {
+    if (selectedUsedCharacters.includes(char)) {
+      setSelectedUsedCharacters(selectedUsedCharacters.filter((c) => c !== char));
+    } else {
+      setSelectedUsedCharacters([...selectedUsedCharacters, char]);
+    }
+  };
 
   // -----------------------------
   // Stages
@@ -211,7 +242,6 @@ export default function MatchScreen() {
     });
 
     async function joinCurrentMatch() {
-
       await conn.invoke(
         "JoinMatch",
         Number(tournamentId),
@@ -239,16 +269,10 @@ export default function MatchScreen() {
 
     async function start() {
       try {
-
-        // Conectar SignalR
         await conn.start();
-
         setConnection(conn);
         setConnected(true);
-
-        // Invocar JoinMatch
         await joinCurrentMatch();
-
       } catch (err: any) {
         Alert.alert(
           "Error SignalR",
@@ -292,77 +316,77 @@ export default function MatchScreen() {
   // Stages
   // -----------------------------
 
-async function sendStageState(state: StageState) {
-  if (selectedStageId == null)
-    return;
+  async function sendStageState(state: StageState) {
+    if (selectedStageId == null)
+      return;
 
-  // actualización inmediata
-  setStages((prev) =>
-    prev.map((s) => ({
-      ...s,
-      state:
+    setStages((prev) =>
+      prev.map((s) => ({
+        ...s,
+        state:
+          s.id === selectedStageId
+            ? state
+            : state === "selected" &&
+              s.state === "selected"
+            ? "neutral"
+            : s.state,
+      }))
+    );
+
+    if (connection && connected) {
+      connection
+        .invoke(
+          "SetStageState",
+          String(setId),
+          selectedStageId,
+          state,
+          meId
+        )
+        .catch(console.error);
+    }
+
+    setStageModalVisible(false);
+    setSelectedStageId(null);
+  }
+
+  async function clearStage() {
+    if (selectedStageId == null)
+      return;
+
+    setStages((prev) =>
+      prev.map((s) =>
         s.id === selectedStageId
-          ? state
-          : state === "selected" &&
-            s.state === "selected"
-          ? "neutral"
-          : s.state,
-    }))
-  );
-
-  if (connection && connected) {
-    connection
-      .invoke(
-        "SetStageState",
-        String(setId),
-        selectedStageId,
-        state,
-        meId
+          ? {
+              ...s,
+              state: "neutral",
+            }
+          : s
       )
-      .catch(console.error);
+    );
+
+    if (connection && connected) {
+      connection
+        .invoke(
+          "SetStageState",
+          String(setId),
+          selectedStageId,
+          "neutral",
+          meId
+        )
+        .catch(console.error);
+    }
+
+    setStageModalVisible(false);
+    setSelectedStageId(null);
   }
 
-  setStageModalVisible(false);
-  setSelectedStageId(null);
-}
-async function clearStage() {
-  if (selectedStageId == null)
-    return;
-
-  setStages((prev) =>
-    prev.map((s) =>
-      s.id === selectedStageId
-        ? {
-            ...s,
-            state: "neutral",
-          }
-        : s
-    )
-  );
-
-  if (connection && connected) {
-    connection
-      .invoke(
-        "SetStageState",
-        String(setId),
-        selectedStageId,
-        "neutral",
-        meId
-      )
-      .catch(console.error);
+  function requestToggleStage(stageId: number) {
+    setSelectedStageId(stageId);
+    setStageModalVisible(true);
   }
-
-  setStageModalVisible(false);
-  setSelectedStageId(null);
-}
- function requestToggleStage(stageId: number) {
-  setSelectedStageId(stageId);
-  setStageModalVisible(true);
-}
-
 
   async function requestResetStages() {
-      setStages((prev) =>
+    setStages((prev) =>
       prev.map((s) => ({
         ...s,
         state: "neutral",
@@ -381,76 +405,47 @@ async function clearStage() {
   // -----------------------------
 
   async function submitResult() {
-  if (!connection || reportSent)
-    return;
+    if (!connection || reportSent)
+      return;
 
-  const winnerIsP1 = p1Score > p2Score;
+    if (selectedUsedCharacters.length === 0) {
+      Alert.alert("Atención", "Debes seleccionar al menos un personaje usado para enviar el reporte.");
+      return;
+    }
 
-  const winnerPlayerId = winnerIsP1
-    ? p1Id
-    : p2Id;
+    const winnerIsP1 = p1Score > p2Score;
+    const winnerPlayerId = winnerIsP1 ? p1Id : p2Id;
+    const loserPlayerId = winnerIsP1 ? p2Id : p1Id;
+    const winnerTag = winnerIsP1 ? player1Tag : player2Tag;
+    const loserTag = winnerIsP1 ? player2Tag : player1Tag;
 
-  const loserPlayerId = winnerIsP1
-    ? p2Id
-    : p1Id;
+    const winnerScore = Math.max(p1Score, p2Score);
+    const loserScore = Math.min(p1Score, p2Score);
 
-  const winnerTag = winnerIsP1
-    ? player1Tag
-    : player2Tag;
+    try {
+      await connection.invoke(
+        "SubmitResult",
+        String(setId),
+        meId,
+        winnerPlayerId,
+        winnerTag,
+        loserPlayerId,
+        loserTag,
+        winnerScore,
+        loserScore,
+        selectedUsedCharacters // 👈 Enviamos el array de personajes usados al backend
+      );
 
-  const loserTag = winnerIsP1
-    ? player2Tag
-    : player1Tag;
-
-
-  const winnerScore = Math.max(
-    p1Score,
-    p2Score
-  );
-
-  const loserScore = Math.min(
-    p1Score,
-    p2Score
-  );
-
-
-  try {
-    await connection.invoke(
-      "SubmitResult",
-
-      // identificación del set
-      String(setId),
-
-      // quién está enviando
-      meId,
-
-      // ganador
-      winnerPlayerId,
-      winnerTag,
-
-      // perdedor
-      loserPlayerId,
-      loserTag,
-
-      // marcador
-      winnerScore,
-      loserScore
-    );
-
-
-    setReportSent(true);
-    setWaitingConfirmation(true);
-
-  } catch (err) {
-
-    console.error(err);
-
-    Alert.alert(
-      "Error",
-      "No se pudo enviar el resultado."
-    );
+      setReportSent(true);
+      setWaitingConfirmation(true);
+    } catch (err) {
+      console.error(err);
+      Alert.alert(
+        "Error",
+        "No se pudo enviar el resultado."
+      );
+    }
   }
-}
 
   const selectedStage = stages.find(
     (s) => s.state === "selected"
@@ -493,76 +488,72 @@ async function clearStage() {
       p1Score <= 5 &&
       p2Score <= 5 &&
       (totalGames === 3 || totalGames === 5);
-    return (
-      <View style={styles.container}>
 
+    return (
+      <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
         <Text style={styles.title}>
           Reportar resultado
         </Text>
 
         <View style={styles.scoreCard}>
-
           <View style={styles.scoreRow}>
-
-            <Text style={styles.playerTag}>
-              {player1Tag}
-            </Text>
-
+            <Text style={styles.playerTag}>{player1Tag}</Text>
             <View style={styles.scoreButtons}>
-
               <Button
                 title="-"
-                onPress={() =>
-                  setP1Score((s) => Math.max(0, s - 1))
-                }
+                onPress={() => setP1Score((s) => Math.max(0, s - 1))}
               />
-
-              <Text style={styles.scoreText}>
-                {p1Score}
-              </Text>
-
+              <Text style={styles.scoreText}>{p1Score}</Text>
               <Button
                 title="+"
                 onPress={() => setP1Score((s) => Math.min(3, s + 1))}
               />
-
             </View>
-
           </View>
 
           <View style={styles.scoreRow}>
-
-            <Text style={styles.playerTag}>
-              {player2Tag}
-            </Text>
-
+            <Text style={styles.playerTag}>{player2Tag}</Text>
             <View style={styles.scoreButtons}>
-
               <Button
                 title="-"
-                onPress={() =>
-                  setP2Score((s) => Math.max(0, s - 1))
-                }
+                onPress={() => setP2Score((s) => Math.max(0, s - 1))}
               />
-
-              <Text style={styles.scoreText}>
-                {p2Score}
-              </Text>
-
+              <Text style={styles.scoreText}>{p2Score}</Text>
               <Button
                 title="+"
                 onPress={() => setP2Score((s) => Math.min(3, s + 1))}
               />
-
             </View>
-
           </View>
-
         </View>
 
         <Text style={styles.previewText}>
           {player1Tag}: {p1Score} vs {player2Tag}: {p2Score}
         </Text>
+
+        {/* Sección de Selección de Personajes Usados */}
+        <Text style={styles.sectionTitle}>Selecciona tus personajes usados:</Text>
+        {mySavedCharacters.length === 0 ? (
+          <Text style={{ color: "#dc2626", marginBottom: 15 }}>
+            No tienes personajes configurados. Ve a "Ingresar personajes" en la pantalla de torneos.
+          </Text>
+        ) : (
+          <View style={styles.charactersContainer}>
+            {mySavedCharacters.map((char) => {
+              const isChecked = selectedUsedCharacters.includes(char);
+              return (
+                <TouchableOpacity
+                  key={char}
+                  style={[styles.charCheckboxCard, isChecked && styles.charCheckboxCardSelected]}
+                  onPress={() => toggleUsedCharacter(char)}
+                >
+                  <Text style={styles.charCheckboxText}>{char}</Text>
+                  <Text style={styles.checkboxSymbol}>{isChecked ? "☑" : "☐"}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
 
         {waitingConfirmation ? (
           <Text style={styles.waitingConfirm}>
@@ -572,7 +563,7 @@ async function clearStage() {
           <Button
             title="✅ Enviar resultado"
             onPress={submitResult}
-            disabled={!validResult || reportSent}
+            disabled={!validResult || reportSent || selectedUsedCharacters.length === 0}
           />
         )}
 
@@ -582,8 +573,7 @@ async function clearStage() {
           title="⬅ Volver"
           onPress={() => setShowReportUi(false)}
         />
-
-      </View>
+      </ScrollView>
     );
   }
 
@@ -686,62 +676,59 @@ async function clearStage() {
         />
       </View>
       <Modal
-  visible={stageModalVisible}
-  transparent
-  animationType="fade"
->
-  <View style={styles.modalBackground}>
-    <View style={styles.modalCard}>
-
-      <Text style={styles.modalTitle}>
-        ¿Qué deseas hacer?
-      </Text>
-
-      <TouchableOpacity
-        style={styles.modalButton}
-        onPress={() =>
-          sendStageState("banned")
-        }
+        visible={stageModalVisible}
+        transparent
+        animationType="fade"
       >
-        <Text style={styles.modalButtonText}>
-          ❌ Banear etapa
-        </Text>
-      </TouchableOpacity>
+        <View style={styles.modalBackground}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>
+              ¿Qué deseas hacer?
+            </Text>
 
-      <TouchableOpacity
-        style={styles.modalButton}
-        onPress={() =>
-          sendStageState("selected")
-        }
-      >
-        <Text style={styles.modalButtonText}>
-          ✅ Seleccionar etapa
-        </Text>
-      </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={() =>
+                sendStageState("banned")
+              }
+            >
+              <Text style={styles.modalButtonText}>
+                ❌ Banear etapa
+              </Text>
+            </TouchableOpacity>
 
-      <TouchableOpacity
-        style={styles.modalButton}
-        onPress={clearStage}
-      >
-        <Text style={styles.modalButtonText}>
-          ⬜ Limpiar marca
-        </Text>
-      </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={() =>
+                sendStageState("selected")
+              }
+            >
+              <Text style={styles.modalButtonText}>
+                ✅ Seleccionar etapa
+              </Text>
+            </TouchableOpacity>
 
-      <TouchableOpacity
-        style={styles.modalCancel}
-        onPress={() =>{
-          setStageModalVisible(false);
-          setSelectedStageId(null);
-        }
-        }
-      >
-        <Text>Cancelar</Text>
-      </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={clearStage}
+            >
+              <Text style={styles.modalButtonText}>
+                ⬜ Limpiar marca
+              </Text>
+            </TouchableOpacity>
 
-    </View>
-  </View>
-</Modal>
+            <TouchableOpacity
+              style={styles.modalCancel}
+              onPress={() =>{
+                setStageModalVisible(false);
+                setSelectedStageId(null);
+              }}
+            >
+              <Text>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -752,7 +739,6 @@ async function clearStage() {
 
   return (
     <View style={styles.container}>
-
       <Text style={styles.title}>
         Sala del set
       </Text>
@@ -775,7 +761,6 @@ async function clearStage() {
         </View>
       ) : (
         <View style={styles.box}>
-
           <Text style={styles.ready}>
             ✅ Ambos jugadores listos
           </Text>
@@ -792,7 +777,6 @@ async function clearStage() {
             />
           ) : (
             <View style={{ marginTop: 20 }}>
-
               <Text style={styles.win}>
                 🎉 {coinWinnerTag} ganó la moneda
               </Text>
@@ -800,13 +784,10 @@ async function clearStage() {
               <Text style={styles.turn}>
                 {firstBannerTag} empieza baneando.
               </Text>
-
             </View>
           )}
-
         </View>
       )}
-
     </View>
   );
 }
@@ -818,32 +799,27 @@ const styles = StyleSheet.create({
     paddingTop: 60,
     backgroundColor: "#fff",
   },
-
   center: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
   },
-
   title: {
     fontSize: 28,
     fontWeight: "bold",
     textAlign: "center",
     marginBottom: 12,
   },
-
   status: {
     textAlign: "center",
     marginBottom: 20,
     fontWeight: "600",
   },
-
   info: {
     textAlign: "center",
     marginBottom: 20,
     color: "#64748b",
   },
-
   box: {
     borderWidth: 1,
     borderColor: "#ddd",
@@ -851,13 +827,11 @@ const styles = StyleSheet.create({
     padding: 24,
     backgroundColor: "#f8fafc",
   },
-
   waiting: {
     textAlign: "center",
     fontSize: 18,
     fontWeight: "600",
   },
-
   ready: {
     textAlign: "center",
     fontSize: 18,
@@ -865,7 +839,6 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     color: "#16a34a",
   },
-
   win: {
     textAlign: "center",
     fontSize: 24,
@@ -873,14 +846,12 @@ const styles = StyleSheet.create({
     color: "#16a34a",
     marginBottom: 10,
   },
-
   turn: {
     textAlign: "center",
     fontSize: 16,
     fontWeight: "600",
     marginTop: 8,
   },
-
   sectionTitle: {
     fontSize: 18,
     fontWeight: "700",
@@ -888,13 +859,11 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     color: "#0f172a",
   },
-
   grid: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
   },
-
   stageCard: {
     width: "48%",
     minHeight: 90,
@@ -906,28 +875,23 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 12,
   },
-
   stageBanned: {
     backgroundColor: "#fee2e2",
     borderColor: "#dc2626",
   },
-
   stageSelected: {
     backgroundColor: "#dcfce7",
     borderColor: "#16a34a",
   },
-
   stageName: {
     fontSize: 15,
     fontWeight: "700",
     color: "#0f172a",
   },
-
   stageMark: {
     fontSize: 26,
     textAlign: "right",
   },
-
   selectedBanner: {
     backgroundColor: "#dcfce7",
     borderWidth: 1,
@@ -936,13 +900,11 @@ const styles = StyleSheet.create({
     padding: 12,
     marginTop: 16,
   },
-
   selectedBannerText: {
     textAlign: "center",
     fontWeight: "700",
     color: "#166534",
   },
-
   buttonsContainer: {
     marginTop: 28,
     gap: 12,
@@ -958,14 +920,12 @@ const styles = StyleSheet.create({
     padding: 16,
     marginVertical: 20,
   },
-
   scoreRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     marginBottom: 18,
   },
-
   playerTag: {
     fontSize: 18,
     fontWeight: "700",
@@ -973,67 +933,85 @@ const styles = StyleSheet.create({
     flex: 1,
     marginRight: 12,
   },
-
   scoreButtons: {
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
   },
-
   scoreText: {
     fontSize: 28,
     fontWeight: "bold",
     width: 40,
     textAlign: "center",
   },
-
   previewText: {
     textAlign: "center",
     fontSize: 18,
     fontWeight: "700",
     marginBottom: 20,
   },
-modalBackground: {
-  flex: 1,
-  backgroundColor: "rgba(0,0,0,0.4)",
-  justifyContent: "center",
-  alignItems: "center",
-},
-
-modalCard: {
-  width: "80%",
-  backgroundColor: "white",
-  borderRadius: 14,
-  padding: 20,
-},
-
-modalTitle: {
-  fontSize: 20,
-  fontWeight: "bold",
-  marginBottom: 20,
-  textAlign: "center",
-},
-
-modalButton: {
-  paddingVertical: 14,
-  borderBottomWidth: 1,
-  borderColor: "#ddd",
-},
-
-modalButtonText: {
-  fontSize: 18,
-  textAlign: "center",
-},
-
-modalCancel: {
-  marginTop: 18,
-  alignItems: "center",
-},
+  modalBackground: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalCard: {
+    width: "80%",
+    backgroundColor: "white",
+    borderRadius: 14,
+    padding: 20,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    marginBottom: 20,
+    textAlign: "center",
+  },
+  modalButton: {
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderColor: "#ddd",
+  },
+  modalButtonText: {
+    fontSize: 18,
+    textAlign: "center",
+  },
+  modalCancel: {
+    marginTop: 18,
+    alignItems: "center",
+  },
   waitingConfirm: {
     textAlign: "center",
     fontSize: 16,
     fontWeight: "600",
     color: "#ea580c",
     marginBottom: 20,
+  },
+  charactersContainer: {
+    marginBottom: 20,
+  },
+  charCheckboxCard: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#f8fafc",
+    padding: 12,
+    marginVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+  },
+  charCheckboxCardSelected: {
+    backgroundColor: "#eff6ff",
+    borderColor: "#3b82f6",
+  },
+  charCheckboxText: {
+    fontSize: 16,
+    color: "#1e293b",
+    fontWeight: "600",
+  },
+  checkboxSymbol: {
+    fontSize: 18,
   },
 });

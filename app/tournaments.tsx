@@ -20,58 +20,66 @@ import {
 export default function TournamentsScreen() {
   const [tournaments, setTournaments] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [hasCharacters, setHasCharacters] = useState(false);
 
   const router = useRouter();
   const API_URL = process.env.EXPO_PUBLIC_API_URL!;
 
   useEffect(() => {
     fetchTournaments();
+    checkSavedCharacters();
   }, []);
 
   useEffect(() => {
-  registerDevice();
-}, []);
+    registerDevice();
+  }, []);
 
-async function registerDevice() {
-  try {
-    const playerId = await AsyncStorage.getItem("myPlayerId");
-
-    if (!playerId) {
-      Alert.alert("Depuración", "No se encontró myPlayerId en AsyncStorage");
-      return;
+  async function checkSavedCharacters() {
+    try {
+      const saved = await AsyncStorage.getItem("selectedCharacters");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        setHasCharacters(parsed && parsed.length > 0);
+      } else {
+        setHasCharacters(false);
+      }
+    } catch {
+      setHasCharacters(false);
     }
-
-    const expoPushToken = await registerForPushNotificationsAsync();
-
-    if (!expoPushToken) {
-      // La alerta del motivo ya se mostró dentro de registerForPushNotificationsAsync
-      return;
-    }
-
-    // Nota: Comentamos temporalmente la comparación con 'lastPushToken' 
-    // para forzar que intente registrar el token en la BD en esta prueba APK.
-
-    const response = await fetch(`${API_URL}/api/device/register`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        playerId: Number(playerId),
-        pushToken: expoPushToken,
-      }),
-    });
-
-    if (response.ok) {
-      await AsyncStorage.setItem("lastPushToken", expoPushToken);
-    } else {
-      const errorText = await response.text();
-      Alert.alert("Error Backend", `Status ${response.status}: ${errorText}`);
-    }
-  } catch (err: any) {
-    Alert.alert("Error en Red/Fetch", err.message || String(err));
   }
-}
+
+  async function registerDevice() {
+    try {
+      const playerId = await AsyncStorage.getItem("myPlayerId");
+
+      if (!playerId) {
+        return;
+      }
+
+      const expoPushToken = await registerForPushNotificationsAsync();
+
+      if (!expoPushToken) {
+        return;
+      }
+
+      const response = await fetch(`${API_URL}/api/device/register`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          playerId: Number(playerId),
+          pushToken: expoPushToken,
+        }),
+      });
+
+      if (response.ok) {
+        await AsyncStorage.setItem("lastPushToken", expoPushToken);
+      }
+    } catch (err: any) {
+      console.log("Error registrando dispositivo:", err.message);
+    }
+  }
 
   async function fetchTournaments() {
     setLoading(true);
@@ -87,7 +95,7 @@ async function registerDevice() {
               text: "OK",
               onPress: async () => {
                 await AsyncStorage.multiRemove(["userToken", "myUserId", "myPlayerId", "myGamerTag"]);
-                router.replace('/'); // 👈 Redirige al Home para forzar el flujo de Login
+                router.replace('/');
               }
             }
           ]
@@ -102,15 +110,12 @@ async function registerDevice() {
           const start = tournament.startAt ?? 0;
           const end = tournament.endAt ?? start;
 
-          // Torneo ocurriendo ahora
           if (now >= start && now <= end)
             return 0;
 
-          // Futuro
           if (start > now)
             return 1;
 
-          // Pasado
           return 2;
         };
 
@@ -120,15 +125,12 @@ async function registerDevice() {
         if (pa !== pb)
           return pa - pb;
 
-        // En curso → comienza antes primero
         if (pa === 0)
           return (a.startAt ?? 0) - (b.startAt ?? 0);
 
-        // Futuros → más cercano primero
         if (pa === 1)
           return (a.startAt ?? 0) - (b.startAt ?? 0);
 
-        // Pasados → más reciente primero
         return (b.endAt ?? 0) - (a.endAt ?? 0);
       });
 
@@ -142,7 +144,6 @@ async function registerDevice() {
 
   function getStatus(item: any) {
     const now = Math.floor(Date.now() / 1000);
-
     const start = item.startAt ?? 0;
     const end = item.endAt ?? start;
 
@@ -159,8 +160,8 @@ async function registerDevice() {
     <View style={styles.container}>
       <View style={styles.topBar}>
         <Button
-          title="← Volver"
-          onPress={() => router.back()}
+          title={hasCharacters ? "Actualizar personajes" : "Ingresar personajes"}
+          onPress={() => router.push("/characters")}
         />
       </View>
 
@@ -215,7 +216,7 @@ const styles = StyleSheet.create({
 
   topBar: {
     marginBottom: 20,
-    alignItems: "flex-start",
+    alignItems: "flex-end",
   },
 
   header: {
